@@ -124,6 +124,24 @@ def test_position_sizing_zero_when_stop_equals_price():
     assert qty == 0
 
 
+def test_position_sizing_never_negative_when_equity_has_gone_negative():
+    """A session that has blown through its capital must never size a trade.
+
+    This is a reachable state: record_trade() lets realised P&L (and equity)
+    go arbitrarily negative on a catastrophic string of losses -- the daily
+    loss guard is a separate check the *caller* must consult before sizing,
+    not something position_size() enforces itself. With negative equity,
+    capital_alloc and qty_capital both go negative; math.floor keeps them
+    negative rather than rounding toward zero. A missing floor at 0 here
+    would let an already-blown-up session size a real order.
+    """
+    rm = make_manager()
+    rm.record_trade(-250_000.0)  # equity now -150,000 on a 100,000 start
+    assert rm.equity < 0
+    qty = rm.position_size(price=100.0, stop_loss=95.0)
+    assert qty == 0
+
+
 def test_blocked_counts_tracked():
     rm = make_manager(max_positions=0 + 1)
     rm.open_positions = 1
