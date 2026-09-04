@@ -93,7 +93,7 @@ def test_history_slice_never_extends_past_current_bar(strategy_name, small_datas
             strat.generate_signal(history)
 
 
-@pytest.mark.parametrize("strategy_name", ["orb", "ema_rsi", "vwap_reversion"])
+@pytest.mark.parametrize("strategy_name", sorted(STRATEGY_REGISTRY))
 def test_mutating_future_bars_does_not_change_past_signals(strategy_name, small_dataset):
     """Scramble every bar in the SECOND HALF of each session and confirm the
     signals generated in the FIRST HALF are byte-identical to the unscrambled
