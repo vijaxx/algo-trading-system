@@ -43,7 +43,7 @@ algotrade/
   broker.py        BrokerAdapter interface + PaperBroker + unfinished live sketch
   metrics.py       P&L, win rate, Sharpe, drawdown, profit factor
   cli.py           `python -m algotrade.cli backtest|costs|list-strategies`
-tests/             92 pytest tests
+tests/             95 pytest tests
 ```
 
 ### Strategies (all implemented from scratch, no TA-Lib)
@@ -245,25 +245,25 @@ Honest read of these numbers:
 ./.venv/bin/python -m pytest -q
 ```
 
-**92 tests, all passing**, covering:
+**95 tests, all passing**, covering:
 
 - `test_indicators.py` (17) — SMA/EMA/RSI/ATR/Bollinger/VWAP/Supertrend
   against hand-computed values (e.g. RSI = 100 on an all-up series, EMA
   matched against a manual recursion, Bollinger bands against `mean ± 2·std`).
-- `test_costs.py` (13) — brokerage floor vs percentage, STT sell-only, stamp
+- `test_costs.py` (14) — brokerage floor vs percentage, STT sell-only, stamp
   duty buy-only, GST base, round-trip long vs short leg swapping, breakeven
   move scaling with ticket size.
-- `test_risk.py` (16) — every guard (daily loss, position count, entry-time
+- `test_risk.py` (17) — every guard (daily loss, position count, entry-time
   cutoff, square-off, circuit breaker) proven to actually block, plus
   position sizing arithmetic.
 - `test_no_lookahead.py` (11, parametrized across strategies) — the
   contract, mutation, and fill-timing proofs described above.
-- `test_metrics.py` (14) — win rate, profit factor (including the
+- `test_metrics.py` (13) — win rate, profit factor (including the
   no-losses/no-trades edge cases), Sharpe, max drawdown, cost drag, all
   against hand-computed values.
 - `test_data.py` (8) — determinism (same seed ⇒ byte-identical output),
   OHLC invariants, session/weekday handling.
-- `test_broker.py` (8) — PaperBroker fills/slippage/funds/position netting,
+- `test_broker.py` (7) — PaperBroker fills/slippage/funds/position netting,
   and a proof that `SketchLiveBrokerAdapter` raises `NotImplementedError` on
   every method that would touch a real account.
 - `test_engine.py` (8) — square-off enforcement, the max-positions cap
