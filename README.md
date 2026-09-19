@@ -43,7 +43,7 @@ algotrade/
   broker.py        BrokerAdapter interface + PaperBroker + unfinished live sketch
   metrics.py       P&L, win rate, Sharpe, drawdown, profit factor
   cli.py           `python -m algotrade.cli backtest|costs|list-strategies`
-tests/             95 pytest tests
+tests/             96 pytest tests
 ```
 
 ### Strategies (all implemented from scratch, no TA-Lib)
@@ -245,7 +245,7 @@ Honest read of these numbers:
 ./.venv/bin/python -m pytest -q
 ```
 
-**95 tests, all passing**, covering:
+**96 tests, all passing**, covering:
 
 - `test_indicators.py` (17) — SMA/EMA/RSI/ATR/Bollinger/VWAP/Supertrend
   against hand-computed values (e.g. RSI = 100 on an all-up series, EMA
@@ -266,9 +266,10 @@ Honest read of these numbers:
 - `test_broker.py` (7) — PaperBroker fills/slippage/funds/position netting,
   and a proof that `SketchLiveBrokerAdapter` raises `NotImplementedError` on
   every method that would touch a real account.
-- `test_engine.py` (8) — square-off enforcement, the max-positions cap
+- `test_engine.py` (9) — square-off enforcement, the max-positions cap
   under concurrency, daily-loss-limit trade-count reduction, cost
-  application on/off, and per-symbol P&L reconciling to the total.
+  application on/off, per-symbol P&L reconciling to the total, and a
+  gap-through-the-stop entry recording its real cost instead of dropping it.
 
 ## Broker integration — paper only, by design
 

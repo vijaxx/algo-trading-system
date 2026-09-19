@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from datetime import time
 
 import pytest
 
 from algotrade.data import generate_dataset
-from algotrade.engine import EXIT_SQUARE_OFF, BacktestEngine
-from algotrade.risk import RiskConfig
+from algotrade.engine import EXIT_GAP_THROUGH_STOP, EXIT_SQUARE_OFF, BacktestEngine, PendingEntry
+from algotrade.risk import RiskConfig, RiskManager
 from algotrade.strategies import build_strategy
+from algotrade.strategies.base import LONG
 
 
 @pytest.fixture(scope="module")
@@ -109,3 +111,37 @@ def test_per_symbol_breakdown_sums_to_total(dataset):
     ps = result.per_symbol()
     if not ps.empty:
         assert ps["net_pnl"].sum() == pytest.approx(result.report.net_pnl, rel=1e-6)
+
+
+def test_gap_through_stop_at_open_is_recorded_as_a_trade():
+    """A pending LONG entry can fill next bar's open already below its stop
+    (a gap down). The engine unwinds it immediately rather than holding a
+    position that's already invalid -- but that unwind is still two real
+    fills at real cost. Both legs must show up in the trade log and in
+    risk.equity, or the backtest silently understates what it actually paid
+    the broker for a scenario this project's own docstring calls out by name.
+    """
+    engine = BacktestEngine(
+        strategy_factory=lambda: build_strategy("orb"),
+        risk_config=RiskConfig(starting_capital=500_000, max_positions=5),
+    )
+    risk = RiskManager(engine.risk_config)
+    risk.open_positions = 1  # simulate the reservation taken at signal time
+
+    pe = PendingEntry(
+        symbol="TEST", side=LONG, quantity=10, stop_loss=195.0, target=210.0, reason="test"
+    )
+    ts = dt.datetime(2024, 1, 2, 9, 20)
+
+    pos, trade = engine._open(pe, price=190.0, ts=ts, risk=risk)  # gapped below stop_loss=195
+
+    assert pos is None
+    assert trade is not None
+    assert trade.exit_reason == EXIT_GAP_THROUGH_STOP
+    assert trade.costs > 0.0
+    assert risk.open_positions == 0
+    # the unwind's net P&L (a loss, since it pays costs on both legs) must
+    # actually hit realised P&L -- this is the part that used to be silently
+    # dropped.
+    assert risk.realised_pnl_today == pytest.approx(trade.net_pnl)
+    assert risk.equity == pytest.approx(risk.config.starting_capital + trade.net_pnl)

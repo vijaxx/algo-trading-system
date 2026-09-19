@@ -40,6 +40,7 @@ EXIT_TARGET = "target"
 EXIT_SQUARE_OFF = "square_off"
 EXIT_EOD = "end_of_day"
 EXIT_STRATEGY = "strategy_exit"
+EXIT_GAP_THROUGH_STOP = "gap_through_stop"
 
 
 @dataclass
@@ -190,9 +191,11 @@ class BacktestEngine:
                     if pending_entries[sym] is not None and sym not in positions:
                         pe = pending_entries[sym]
                         pending_entries[sym] = None
-                        pos = self._open(pe, bar_open, ts, risk)
+                        pos, gap_trade = self._open(pe, bar_open, ts, risk)
                         if pos is not None:
                             positions[sym] = pos
+                        if gap_trade is not None:
+                            trades.append(gap_trade)
                     pending_entries[sym] = None
 
                     # ---- B. manage an open position on THIS bar
@@ -314,7 +317,7 @@ class BacktestEngine:
 
     def _open(
         self, pe: PendingEntry, price: float, ts: datetime, risk: RiskManager
-    ) -> Optional[OpenPosition]:
+    ) -> tuple[Optional[OpenPosition], Optional[Trade]]:
         side_str = BUY if pe.side == LONG else SELL
         fill = self.broker.place_order(
             Order(symbol=pe.symbol, side=side_str, quantity=pe.quantity, timestamp=ts),
@@ -322,18 +325,41 @@ class BacktestEngine:
         )
         # Guard against a gap through the stop at the open: if the fill price
         # is already past the stop the trade makes no sense, so skip it.
-        if pe.side == LONG and fill.price <= pe.stop_loss:
-            self._unwind(pe, fill, ts)
+        gapped_through_stop = (pe.side == LONG and fill.price <= pe.stop_loss) or (
+            pe.side == SHORT and fill.price >= pe.stop_loss
+        )
+        if gapped_through_stop:
+            unwind_fill = self._unwind(pe, fill, ts)
             risk.open_positions = max(risk.open_positions - 1, 0)  # release reservation
-            return None
-        if pe.side == SHORT and fill.price >= pe.stop_loss:
-            self._unwind(pe, fill, ts)
-            risk.open_positions = max(risk.open_positions - 1, 0)  # release reservation
-            return None
+
+            # The unwind is two real fills at real cost, even though no
+            # position is kept -- both legs must still hit realised P&L and
+            # the trade log, or the backtest quietly understates what it
+            # actually paid the broker.
+            entry_costs = fill.charges.total if self.apply_costs else 0.0
+            exit_costs = unwind_fill.charges.total if self.apply_costs else 0.0
+            gross = pe.side * (unwind_fill.price - fill.price) * pe.quantity
+            total_costs = entry_costs + exit_costs
+            risk.record_trade(gross - total_costs)
+
+            trade = Trade(
+                symbol=pe.symbol,
+                strategy="",
+                side=pe.side,
+                quantity=pe.quantity,
+                entry_time=ts,
+                entry_price=fill.price,
+                exit_time=ts,
+                exit_price=unwind_fill.price,
+                exit_reason=EXIT_GAP_THROUGH_STOP,
+                gross_pnl=gross,
+                costs=total_costs,
+            )
+            return None, trade
 
         # NOTE: risk.open_positions was already incremented at signal time
         # (the reservation) -- do not increment it again here.
-        return OpenPosition(
+        pos = OpenPosition(
             symbol=pe.symbol,
             side=pe.side,
             quantity=pe.quantity,
@@ -344,11 +370,12 @@ class BacktestEngine:
             entry_costs=fill.charges.total if self.apply_costs else 0.0,
             reason=pe.reason,
         )
+        return pos, None
 
-    def _unwind(self, pe: PendingEntry, fill, ts) -> None:
-        """Immediately reverse an entry we decided not to keep."""
+    def _unwind(self, pe: PendingEntry, fill, ts):
+        """Immediately reverse an entry we decided not to keep. Returns the fill."""
         opposite = SELL if pe.side == LONG else BUY
-        self.broker.place_order(
+        return self.broker.place_order(
             Order(symbol=pe.symbol, side=opposite, quantity=pe.quantity, timestamp=ts),
             reference_price=fill.price,
         )
