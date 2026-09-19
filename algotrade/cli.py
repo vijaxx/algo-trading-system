@@ -116,6 +116,15 @@ def cmd_backtest(args) -> int:
         names = [args.strategy]
 
     symbols = args.symbols or list(SYMBOLS)
+    unknown = [s for s in symbols if s not in SYMBOLS]
+    if unknown:
+        print(
+            f"unknown symbol(s) {', '.join(unknown)}; "
+            f"available: {', '.join(SYMBOLS)}",
+            file=sys.stderr,
+        )
+        return 2
+
     data = generate_dataset(
         symbols=symbols,
         n_days=args.days,
