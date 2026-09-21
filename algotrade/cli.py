@@ -49,6 +49,20 @@ def cmd_list_strategies(args) -> int:
 
 
 def cmd_costs(args) -> int:
+    if args.price < 0:
+        print(f"--price must be non-negative, got {args.price}", file=sys.stderr)
+        return 2
+    if args.qty < 0:
+        print(f"--qty must be non-negative, got {args.qty}", file=sys.stderr)
+        return 2
+    if args.move_pct <= -100.0:
+        print(
+            f"--move-pct must be greater than -100 (price can't go negative), "
+            f"got {args.move_pct}",
+            file=sys.stderr,
+        )
+        return 2
+
     model = DEFAULT_COSTS
     buy = model.order_cost(args.price, args.qty, "BUY")
     sell_price = args.price * (1 + args.move_pct / 100.0)

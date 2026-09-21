@@ -43,7 +43,7 @@ algotrade/
   broker.py        BrokerAdapter interface + PaperBroker + unfinished live sketch
   metrics.py       P&L, win rate, Sharpe, drawdown, profit factor
   cli.py           `python -m algotrade.cli backtest|costs|list-strategies`
-tests/             99 pytest tests
+tests/             102 pytest tests
 ```
 
 ### Strategies (all implemented from scratch, no TA-Lib)
@@ -245,7 +245,7 @@ Honest read of these numbers:
 ./.venv/bin/python -m pytest -q
 ```
 
-**99 tests, all passing**, covering:
+**102 tests, all passing**, covering:
 
 - `test_indicators.py` (17) — SMA/EMA/RSI/ATR/Bollinger/VWAP/Supertrend
   against hand-computed values (e.g. RSI = 100 on an all-up series, EMA
@@ -270,8 +270,10 @@ Honest read of these numbers:
   under concurrency, daily-loss-limit trade-count reduction, cost
   application on/off, per-symbol P&L reconciling to the total, and a
   gap-through-the-stop entry recording its real cost instead of dropping it.
-- `test_cli.py` (3) — unknown `--strategy` and unknown `--symbols` both exit
-  cleanly with a helpful message on stderr instead of an uncaught traceback.
+- `test_cli.py` (6) — unknown `--strategy` and unknown `--symbols`, and
+  invalid `costs` inputs (negative `--price`/`--qty`, a `--move-pct` that
+  would drive the price negative), all exit cleanly with a helpful message
+  on stderr instead of an uncaught traceback.
 
 ## Broker integration — paper only, by design
 
